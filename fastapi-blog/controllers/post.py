@@ -18,5 +18,12 @@ async def read_posts(
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=PostOut)
-def create_post(post: PostIn):
-    return post
+async def create_post(post: PostIn):
+    command = posts.insert().values(
+        title=post.title,
+        content=post.content,
+        published_at=post.published_at,
+        published=post.published,
+    )
+    last_id = await database.execute(command)
+    return {**post.model_dump(), "id": last_id}
