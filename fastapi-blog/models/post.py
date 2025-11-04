@@ -1,4 +1,4 @@
-from main import metadata
+from database import metadata
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, Table
 
 posts = Table(
