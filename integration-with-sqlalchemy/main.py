@@ -1,28 +1,19 @@
-# Working with Database Metadata
-
 from typing import List, Optional
 
-from sqlalchemy import (Column, ForeignKey, Integer, String, create_engine,
-                        inspect, select)
-from sqlalchemy.orm import (DeclarativeBase, Mapped, Session, declarative_base,
-                            mapped_column, relationship)
+from sqlalchemy import ForeignKey, String, create_engine, select
+from sqlalchemy.orm import (DeclarativeBase, Mapped, Session, mapped_column,
+                            relationship)
 
 
-# Establishing a declarative base
 class Base(DeclarativeBase):
     pass
 
 
-# Declaring mapped classes
 class User(Base):
     __tablename__ = "user_account"
-
-    # Attributes
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(30))
     fullname: Mapped[Optional[str]]
-
-    # Relationship
     addresses: Mapped[List["Address"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
@@ -33,68 +24,63 @@ class User(Base):
 
 class Address(Base):
     __tablename__ = "address"
-
-    # Attributes
     id: Mapped[int] = mapped_column(primary_key=True)
     email_address: Mapped[str]
-    user_id: Mapped[int] = mapped_column("user_account.id")
-
-    # Relationship
+    user_id: Mapped[int] = mapped_column(ForeignKey("user_account.id"))
     user: Mapped["User"] = relationship(back_populates="addresses")
 
     def __repr__(self) -> str:
         return f"Address({self.id!r}, email_address={self.email_address!r})"
 
 
-# Establishing connectivity
 engine = create_engine("sqlite+pysqlite:///:memory:", echo=True)
 
-# Create all tables stored in this metadata.
 Base.metadata.create_all(engine)
 
-# Performs database schema inspection.
-insp = inspect(engine)
-print(insp.get_table_names())
-
-# Create session and add objects
 with Session(engine) as session:
-    mary = User(
-        name="mary",
-        fullname="Mary Jane",
-        address=[Address(email_address="jane_mary@mail.com")],
+    spongebob = User(
+        name="spongebob",
+        fullname="Spongebob Squarepants",
+        addresses=[Address(email_address="spongebob@sqlalchemy.org")],
     )
-
-    john = User(
-        name="john",
-        fullname="John Jones",
-        address=[
-            Address(email_address="jones_john@mail.com"),
-            Address(email_address="jjones@mail.com"),
+    sandy = User(
+        name="sandy",
+        fullname="Sandy Cheeks",
+        addresses=[
+            Address(email_address="sandy@sqlalchemy.org"),
+            Address(email_address="sandy@squirrelpower.org"),
         ],
     )
+    patrick = User(name="patrick", fullname="Patrick Star")
 
-    peter = User(name="peter", fullname="Peter Park")
+    session.add_all([spongebob, sandy, patrick])
 
-    # Framing out a BEGIN / COMMIT / ROLLBACK block
-    session.begin()
-    try:
-        session.add_all([mary, john, peter])
-    except Exception as e:
-        session.rollback()
-        raise e
-    else:
-        session.commit()
+    session.commit()
 
-# Querying
 with Session(engine) as session:
-    # Query for ``User`` objects
-    statement = select(User).filter_by(name="Mary")
+    stmt = select(User).where(User.name.in_(["spongebob", "sandy"]))
+    for user in session.scalars(stmt):
+        print(user)
 
-    # List of ``User`` objects
-    user_obj = session.scalars(statement).all()
+    stmt = (
+        select(Address)
+        .join(Address.user)
+        .where(User.name == "sandy")
+        .where(Address.email_address == "sandy@sqlalchemy.org")
+    )
+    sandy_adress = session.scalars(stmt).one()
 
-    # Query for individual columns
-    statement = select(User.name, User.fullname)
+    stmt = select(User).where(User.name == "patrick")
+    patrick = session.scalars(stmt).one()
+    patrick.addresses.append(Address(email_address="patrickstar@sqlalchemy.org"))
 
-    # List of Row objects
-    rows = session.execute(statement).all()
+    sandy_adress.email_address = "sandy_cheeks@sqlalchemy.org"
+
+    session.commit()
+
+    sandy = session.get(User, 2)
+    sandy.addresses.remove(sandy_adress)
+    session.flush()
+
+    session.delete(patrick)
+    session.commit()
