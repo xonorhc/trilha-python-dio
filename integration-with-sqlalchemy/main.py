@@ -1,14 +1,16 @@
 # Working with Database Metadata
 
+from typing import List, Optional
+
 from sqlalchemy import (Column, ForeignKey, Integer, String, create_engine,
                         inspect, select)
-from sqlalchemy.orm import Session, declarative_base, relationship
+from sqlalchemy.orm import (DeclarativeBase, Mapped, Session, declarative_base,
+                            mapped_column, relationship)
+
 
 # Establishing a declarative base
-Base = declarative_base()
-
-# TODO: Convert an old-style Declarative class to the new style,
-# Using ORM declarative forms to define table metadata
+class Base(DeclarativeBase):
+    pass
 
 
 # Declaring mapped classes
@@ -16,12 +18,14 @@ class User(Base):
     __tablename__ = "user_account"
 
     # Attributes
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(50), nullable=False)
-    fullname = Column(String)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(30))
+    fullname: Mapped[Optional[str]]
 
     # Relationship
-    address = relationship("Address", back_populates="user", cascade="all")
+    addresses: Mapped[List["Address"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"User({self.id!r}, name={self.name!r}, fullname={self.fullname!r})"
@@ -31,12 +35,12 @@ class Address(Base):
     __tablename__ = "address"
 
     # Attributes
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    email_address = Column(String(50), nullable=False)
-    user_id = Column(Integer, ForeignKey("user_account.id"), nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email_address: Mapped[str]
+    user_id: Mapped[int] = mapped_column("user_account.id")
 
     # Relationship
-    user = relationship("User", back_populates="address")
+    user: Mapped["User"] = relationship(back_populates="addresses")
 
     def __repr__(self) -> str:
         return f"Address({self.id!r}, email_address={self.email_address!r})"
